@@ -1,0 +1,7 @@
+# Ignore auxillary run files created by xfoil.m
+*.inp
+*.out
+!.gitignore
+
+# Ignore DS_Store files:
+*.DS_Store
