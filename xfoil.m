@@ -7,7 +7,7 @@
 %/*          Gus Brown's Xfoil Interface. Modified for MacOS */%
 %/************************************************************/%
 
-function [pol,foil] = xfoil(coord,alpha,Re,Mach,varargin)
+function [pol,foil] = xfoil(coord,Alpha,Re,Mach,varargin)
 % Run XFoil and return the results.
 % [polar,foil] = xfoil(coord,alpha,Re,Mach,{extra commands})
 %
@@ -78,11 +78,11 @@ function [pol,foil] = xfoil(coord,alpha,Re,Mach,varargin)
 %
 % Some default values
 if ~exist('coord','var'), coord = 'NACA0012'; end
-if ~exist('alpha','var'), alpha = 0; end
+if ~exist('Alpha','var'), Alpha = 0; end
 if ~exist('Re','var'),    Re = 1e6; end
 if ~exist('Mach','var'),  Mach = 0; end
 
-Nalpha = length(alpha); % number of alphas swept
+Nangle = length(Alpha); % number of alphas swept
 [wd,fname,~] = fileparts(which(mfilename)); % working directory
 
 % SPECIFY FOIL PROFILE ----------------------------------------------------
@@ -151,7 +151,7 @@ else
     
     % write: blake's additions for modern computers
     fprintf(fid,'\n\nPPAR\n');
-    fprintf(fid,'N %u\n',240);    % increase n panels
+    fprintf(fid,'N %u\n',120);    % increase n panels
     fprintf(fid,'T %g\n\n\n',1);  % uniform LE/TE panel density
     
     % write: specify additional xfoil commands
@@ -177,15 +177,15 @@ else
     fprintf(fid,'pacc\n\n\n');
     
     % write: loop through alphas, create DUMP file & CPx file for each
-    [file_dump, file_cpwr] = deal(cell(1,Nalpha)); % preallocate cells
+    [file_dump, file_cpwr] = deal(cell(1,Nangle)); % preallocate cells
     
-    for ii = 1:Nalpha
+    for ii = 1:Nangle
         % assign output filenames to preallocated cells
-        file_dump{ii} = sprintf('%s_a%06.3f_dump.dat',fname,alpha(ii));
-        file_cpwr{ii} = sprintf('%s_a%06.3f_cpwr.dat',fname,alpha(ii));
+        file_dump{ii} = sprintf('%s_a%06.3f_dump.dat',fname,Alpha(ii));
+        file_cpwr{ii} = sprintf('%s_a%06.3f_cpwr.dat',fname,Alpha(ii));
         
         % write: run x-foil for each alpha, store in file
-        fprintf(fid,'ALFA %g\n',alpha(ii));
+        fprintf(fid,'ALFA %g\n',Alpha(ii));
         fprintf(fid,'DUMP %s\n',file_dump{ii});
         fprintf(fid,'CPWR %s\n',file_cpwr{ii});
     end
@@ -210,13 +210,13 @@ end
 %    #    s        x        y     Ue/Vinf    Dstar     Theta      Cf       H
 jj = 0;
 ind = 1;
-foil.alpha = zeros(1,Nalpha); % Preallocate alphas
+foil.Alpha = zeros(1,Nangle); % Preallocate alphas
 
 % Find the number of panels with an inital run
 Nout = nargout; % Number of outputs checked. If only one left hand operator then only do polar
 if Nout >1 % Only do the foil calculations if more than one left hand operator is specificed
     %WHY? what if user supplies: [foil] = xfoil()?
-    for ii = 1:Nalpha
+    for ii = 1:Nangle
         jj = jj + 1;
         fid = fopen([wd filesep file_dump{ii}],'r');
         if (fid<=0)
@@ -234,7 +234,7 @@ if Nout >1 % Only do the foil calculations if more than one left hand operator i
                 % preallocate data structures
                 [foil.s, foil.x, foil.y, ...
                     foil.UeVinf, foil.Dstar, foil.Theta,...
-                    foil.Cf, foil.H] = deal(zeros(Npanel,Nalpha));
+                    foil.Cf, foil.H] = deal(zeros(Npanel,Nangle));
             end
             
             % store data
@@ -254,7 +254,7 @@ if Nout >1 % Only do the foil calculations if more than one left hand operator i
             foil.Cf(:,jj) = D{1}(:,7);
             foil.H (:,jj)= D{1}(:,8);
         end
-        foil.alpha(1,jj) = alpha(jj);
+        foil.Alpha(1,jj) = Alpha(jj);
         
         % read: CPx file from xfoil
         fid = fopen([wd filesep file_cpwr{ii}],'r');
@@ -274,7 +274,7 @@ if Nout >1 % Only do the foil calculations if more than one left hand operator i
             if ii == 1
                 NCp = length(C{1});
                 % preallocate data structures
-                [foil.xcp, foil.cp] = deal(zeros(NCp,Nalpha));
+                [foil.xcp, foil.cp] = deal(zeros(NCp,Nangle));
                 foil.xcp = C{1}(:,1);
             end
             foil.cp(:,jj) = C{2}(:,1);
@@ -285,7 +285,7 @@ end
 if Nout <= 1% clear files for default run
     % NOTE: why is this not elseif? Nout is either <=1 or >1
     
-    for ii=1:Nalpha % Clear out the xfoil dump files not used
+    for ii=1:Nangle % Clear out the xfoil dump files not used
         delete([wd filesep file_dump{ii}]);
         delete([wd filesep file_cpwr{ii}]);
     end
@@ -330,9 +330,9 @@ else
         'MultipleDelimsAsOne', true, 'HeaderLines' , 4, 'ReturnOnError', false);
     % NOTE: header lines = 3?
     fclose(fid);
-    delete([wd filesep file_pwrt]);
+    %delete([wd filesep file_pwrt]);
     % store data
-    pol.alpha = P{1}(:,1);
+    pol.Alpha = P{1}(:,1);
     pol.CL  = P{2}(:,1);
     pol.CD  = P{3}(:,1);
     pol.LD  = (pol.CL)./(pol.CD);
@@ -341,15 +341,16 @@ else
     pol.Top_xtr = P{6}(:,1);
     pol.Bot_xtr = P{7}(:,1);
 end
-if length(pol.alpha) ~= Nalpha % Check if xfoil failed to converge
+if length(pol.Alpha) ~= Nangle % Check if xfoil failed to converge
     warning(['One or more alpha values failed to converge. ',...
         'Recorded as NaN.']);
     
     %fill interior gaps with NaN
-    gaps = find(diff(pol.alpha)~=1);
+    dAlpha = diff(Alpha);
+    gaps = find(diff(pol.Alpha)~=dAlpha(1));
     
     for i=1:length(gaps)
-        pol.alpha = [pol.alpha(1:gaps(i));NaN;pol.alpha(gaps(i)+1:end)];
+        pol.Alpha = [pol.Alpha(1:gaps(i));NaN;pol.Alpha(gaps(i)+1:end)];
         pol.CL = [pol.CL(1:gaps(i));NaN;pol.CL(gaps(i)+1:end)];
         pol.CD = [pol.CD(1:gaps(i));NaN;pol.CD(gaps(i)+1:end)];
         pol.LD = [pol.LD(1:gaps(i));NaN;pol.LD(gaps(i)+1:end)];
@@ -362,8 +363,8 @@ if length(pol.alpha) ~= Nalpha % Check if xfoil failed to converge
     end
     
     %fill bounding gaps with NaN
-    if (Nalpha-length(pol.alpha)==2)    % front and back missing
-        pol.alpha = [NaN;pol.alpha;NaN];
+    if (Nangle-length(pol.Alpha)==2)    % front and back missing
+        pol.Alpha = [NaN;pol.Alpha;NaN];
         pol.CL = [NaN;pol.CL;NaN];
         pol.CD = [NaN;pol.CD;NaN];
         pol.LD = [NaN;pol.LD;NaN];
@@ -372,9 +373,9 @@ if length(pol.alpha) ~= Nalpha % Check if xfoil failed to converge
         pol.Top_xtr = [NaN;pol.Top_xtr;NaN];
         pol.Bot_xtr = [NaN;pol.Bot_xtr;NaN];
         
-    elseif (Nalpha-length(pol.alpha)==1)    %either front or back missing
-        if pol.alpha(1) ~= alpha(1)
-            pol.alpha = [NaN;pol.alpha];
+    elseif (Nangle-length(pol.Alpha)==1)    %either front or back missing
+        if pol.Alpha(1) ~= Alpha(1)
+            pol.Alpha = [NaN;pol.Alpha];
             pol.CL = [NaN;pol.CL];
             pol.CD = [NaN;pol.CD];
             pol.LD = [NaN;pol.LD];
@@ -383,7 +384,7 @@ if length(pol.alpha) ~= Nalpha % Check if xfoil failed to converge
             pol.Top_xtr = [NaN;pol.Top_xtr];
             pol.Bot_xtr = [NaN;pol.Bot_xtr];
         else
-            pol.alpha = [pol.alpha;NaN];
+            pol.Alpha = [pol.Alpha;NaN];
             pol.CL = [pol.CL;NaN];
             pol.CD = [pol.CD;NaN];
             pol.LD = [pol.LD;NaN];
