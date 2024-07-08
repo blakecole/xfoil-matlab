@@ -7,7 +7,7 @@
 %/*          Gus Brown's Xfoil Interface. Modified for MacOS */%
 %/************************************************************/%
 
-function [pol,foil] = xfoil(coord,Alpha,Re,Mach,varargin)
+function [pol,foil] = xfoil(coord,Alpha,Re,Mach,maxIter,nPanels,Ncrit,varargin)
 % Run XFoil and return the results.
 % [polar,foil] = xfoil(coord,alpha,Re,Mach,{extra commands})
 %
@@ -77,10 +77,13 @@ function [pol,foil] = xfoil(coord,Alpha,Re,Mach,varargin)
 %    ylabel('y'); axis('equal');
 %
 % Some default values
-if ~exist('coord','var'), coord = 'NACA0012'; end
-if ~exist('Alpha','var'), Alpha = 0; end
-if ~exist('Re','var'),    Re = 1e6; end
-if ~exist('Mach','var'),  Mach = 0; end
+if ~exist('coord','var'),   coord = 'NACA0012'; end
+if ~exist('Alpha','var'),   Alpha = 0; end
+if ~exist('Re','var'),      Re = 1e6; end
+if ~exist('Mach','var'),    Mach = 0; end
+if ~exist('MaxIter','var'), maxIter = 250; end
+if ~exist('nPanels','var'), nPanels = 120; end
+if ~exist('Ncrit','var'),   Ncrit = 9; end
 
 Nangle = length(Alpha); % number of alphas swept
 [wd,fname,~] = fileparts(which(mfilename)); % working directory
@@ -149,24 +152,27 @@ else
         fprintf(fid,'LOAD %s\n',coord_file);
     end
     
-    % write: blake's additions for modern computers
-    fprintf(fid,'\n\nPPAR\n');
-    fprintf(fid,'N %u\n',120);    % increase n panels
-    fprintf(fid,'T %g\n\n\n',1);  % uniform LE/TE panel density
+    % write: blake's additions for modern computers (PPAR)
+    fprintf(fid,'PPAR\n');
+    fprintf(fid,'N %u\n',nPanels);  % increase n panels
+    fprintf(fid,'T %g\n\n\n',1); % TE/LE panel density
     
-    % write: specify additional xfoil commands
+     % write: specify additional xfoil commands
     for ii = 1:length(varargin)
         txt = varargin{ii};
         txt = regexprep(txt,'[ \\\/]+','\n');
-        fprintf(fid,'%s\n\n',txt);
+        fprintf(fid,'%s\n\n\n',txt);
     end
     
     % write: enter OPER submenu
-    fprintf(fid,'\n\nOPER\n');
-    % write: reynolds number and mach number (from function arguments)
+    fprintf(fid,'OPER\n');
     fprintf(fid,'RE %g\n',Re);
     fprintf(fid,'MACH %g\n',Mach);
-    fprintf(fid,'ITER %u\n',500); % increase max iterations
+    fprintf(fid,'ITER %u\n',maxIter);
+    
+    % enter OPER/VPAR submenu
+    fprintf(fid,'VPAR\n');
+    fprintf(fid,'N %u\n\n',Ncrit);
     
     % write: switch to viscous mode
     if (Re>0)
@@ -174,7 +180,7 @@ else
     end
     
     % write: polar accumulation mode enabled
-    fprintf(fid,'pacc\n\n\n');
+    fprintf(fid,'PACC\n\n\n');
     
     % write: loop through alphas, create DUMP file & CPx file for each
     [file_dump, file_cpwr] = deal(cell(1,Nangle)); % preallocate cells
